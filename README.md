@@ -27,3 +27,15 @@ This project demonstrates CRUD operations using a JSON file for persistence.
 - POST: /tasks
 - PUT: /tasks/1
 - DELETE: /tasks/1
+
+## Tech Stack
+- Python
+- Flask
+- SQLite (Database)
+- REST API Architecture
+
+## Features
+- Full CRUD API (Create, Read, Update, Delete)
+- SQLite database persistence
+- RESTful endpoints
+- Error handling and validation
