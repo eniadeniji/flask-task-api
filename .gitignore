@@ -11,4 +11,5 @@ venv/
 .vscode/
 
 # Generated data files
+tasks.db
 tasks.json

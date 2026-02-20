@@ -1,26 +1,9 @@
 from flask import Flask, request, jsonify
-import json
-import os
+import sqlite3
+from database import init_db, get_connection
 
 app = Flask(__name__)
-
-DATA_FILE = "tasks.json"
-
-
-def load_tasks():
-    if not os.path.exists(DATA_FILE):
-        return []
-    try:
-        with open(DATA_FILE, "r") as file:
-            return json.load(file)
-    except json.JSONDecodeError:
-        return []
-
-
-def save_tasks(tasks):
-    with open(DATA_FILE, "w") as file:
-        json.dump(tasks, file, indent=4)
-
+init_db()
 
 @app.route("/")
 def home():
@@ -29,74 +12,92 @@ def home():
 
 @app.route("/tasks", methods=["GET"])
 def get_tasks():
-    tasks = load_tasks()
-    return jsonify(tasks)
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM tasks")
+    tasks = cursor.fetchall()
+
+    conn.close()
+
+    return jsonify([dict(task) for task in tasks])
 
 
 @app.route("/tasks", methods=["POST"])
 def add_task():
-    tasks = load_tasks()
     data = request.get_json()
 
     if not data or "title" not in data:
         return jsonify({"error": "Task title is required"}), 400
 
-    new_task = {
-        "id": len(tasks) + 1,
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "INSERT INTO tasks (title, completed) VALUES (?, ?)",
+        (data["title"], False)
+    )
+
+    conn.commit()
+    new_id = cursor.lastrowid
+    conn.close()
+
+    return jsonify({
+        "id": new_id,
         "title": data["title"],
         "completed": False
-    }
-
-    tasks.append(new_task)
-    save_tasks(tasks)
-
-    return jsonify(new_task), 201
+    }), 201
 
 
 @app.route("/tasks/<int:task_id>", methods=["DELETE"])
 def delete_task(task_id):
-    tasks = load_tasks()
-    tasks = [task for task in tasks if task["id"] != task_id]
-    save_tasks(tasks)
-    return jsonify({"message": "Task deleted"})
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+    conn.commit()
+
+    if cursor.rowcount == 0:
+        conn.close()
+        return jsonify({"error": "Task not found"}), 404
+
+    conn.close()
+    return jsonify({"message": "Task deleted successfully"})
 
 @app.route("/tasks/<int:task_id>", methods=["PUT"])
 def update_task(task_id):
-    tasks = load_tasks()
-    data = request.get_json()
-
-    for task in tasks:
-        if task["id"] == task_id:
-            if "completed" in data:
-                task["completed"] = data["completed"]
-            if "title" in data:
-                task["title"] = data["title"]
-
-            save_tasks(tasks)
-            return jsonify(task)
-
-    return jsonify({"error": "Task not found"}), 404
-
-
-@app.route("/tasks/<int:task_id>", methods=["PUT"])
-def update_task(task_id):
-    tasks = load_tasks()
     data = request.get_json()
 
     if not data:
         return jsonify({"error": "No data provided"}), 400
 
-    for task in tasks:
-        if task["id"] == task_id:
-            if "completed" in data:
-                task["completed"] = data["completed"]
-            if "title" in data:
-                task["title"] = data["title"]
+    conn = get_connection()
+    cursor = conn.cursor()
 
-            save_tasks(tasks)
-            return jsonify(task)
+    # Check if task exists
+    cursor.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))
+    task = cursor.fetchone()
 
-    return jsonify({"error": "Task not found"}), 404
+    if not task:
+        conn.close()
+        return jsonify({"error": "Task not found"}), 404
+
+    # Update fields if provided
+    title = data.get("title", task["title"])
+    completed = data.get("completed", task["completed"])
+
+    cursor.execute(
+        "UPDATE tasks SET title = ?, completed = ? WHERE id = ?",
+        (title, completed, task_id)
+    )
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "id": task_id,
+        "title": title,
+        "completed": completed
+    })
 
 if __name__ == "__main__":
     app.run(debug=True)
