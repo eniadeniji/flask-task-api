@@ -39,3 +39,13 @@ This project demonstrates CRUD operations using a JSON file for persistence.
 - SQLite database persistence
 - RESTful endpoints
 - Error handling and validation
+
+## Live API
+Base URL:
+https://flask-task-api-9f36.onrender.com
+
+Endpoints:
+- GET /tasks
+- POST /tasks
+- PUT /tasks/<id>
+- DELETE /tasks/<id>
